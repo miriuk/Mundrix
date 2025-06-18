@@ -175,6 +175,8 @@ function App() {
           marginLeft: '280px',
           height: '100vh',
           width: 'calc(100vw - 280px)',
+zIndex: 0, // <-- IMPORTANTE
+    position: 'relative',
         }}
       >
         <ambientLight intensity={0.4} />
