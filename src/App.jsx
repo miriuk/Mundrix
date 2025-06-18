@@ -178,4 +178,13 @@ function App() {
       <Canvas
         shadows
         camera={{ position: [10, 5, 10], fov: 50 }}
-        onCreated={({ sce
+        onCreated={({ scene }) => (sceneRef.current = scene)}
+        style={{ marginLeft: '280px' }}
+      >
+        <Scene prompt={prompt} seed={seed} />
+      </Canvas>
+    </div>
+  );
+}
+
+export default App;
