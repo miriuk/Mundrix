@@ -1,27 +1,29 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Box } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 
 function App() {
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
-      <input
-        type="text"
-        placeholder="Describe your world..."
-        style={{
-          position: 'absolute',
-          top: 20,
-          left: 20,
-          padding: '8px 12px',
-          zIndex: 10,
-          borderRadius: '8px'
-        }}
-      />
-      <Canvas>
-        <ambientLight />
-        <pointLight position={[10, 10, 10]} />
-        <Box position={[0, 0, 0]}>
-          <meshStandardMaterial color="hotpink" />
-        </Box>
+      <Canvas shadows camera={{ position: [3, 3, 3], fov: 50 }}>
+        <ambientLight intensity={0.3} />
+        <directionalLight
+          castShadow
+          position={[5, 5, 5]}
+          intensity={1.2}
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+        />
+        
+        <mesh castShadow receiveShadow position={[0, 0.5, 0]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color="#ff4081" roughness={0.4} metalness={0.3} />
+        </mesh>
+
+        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+          <planeGeometry args={[10, 10]} />
+          <shadowMaterial opacity={0.3} />
+        </mesh>
+
         <OrbitControls />
       </Canvas>
     </div>
