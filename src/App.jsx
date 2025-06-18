@@ -7,31 +7,30 @@ import * as THREE from 'three';
 const TERRAIN_SIZE = 50;
 const SEGMENTS = 64;
 
-const keywordMap = {
-  montanha: { height: 8 },
-  montanhas: { height: 8 },
-  planicie: { height: 1 },
-  reta: { height: 0.5 },
-  rio: { river: true },
-  floresta: { trees: true },
-};
-
 function parsePrompt(prompt) {
-  const words = prompt.toLowerCase().split(/\s+/);
-  const settings = {
-    baseHeight: 2,
-    river: false,
-    trees: false,
+  const zones = {
+    north: { height: 2 },
+    center: { height: 2 },
+    south: { height: 2 },
+    river: null,
+    lake: null,
   };
-  for (let word of words) {
-    if (keywordMap[word]?.height !== undefined) settings.baseHeight = keywordMap[word].height;
-    if (keywordMap[word]?.river) settings.river = true;
-    if (keywordMap[word]?.trees) settings.trees = true;
-  }
-  return settings;
+
+  const lower = prompt.toLowerCase();
+
+  if (lower.includes('montanha') && lower.includes('norte')) zones.north.height = 8;
+  if (lower.includes('montanha') && lower.includes('sul')) zones.south.height = 8;
+  if (lower.includes('montanha') && lower.includes('centro')) zones.center.height = 8;
+  if (lower.includes('reta') || lower.includes('plano') || lower.includes('planicie')) zones.center.height = 1;
+
+  if (lower.includes('rio')) zones.river = { width: 3 };
+  if (lower.includes('rio fino')) zones.river = { width: 1 };
+  if (lower.includes('lago')) zones.lake = { radius: 5, depth: -1 };
+
+  return zones;
 }
 
-function generateHeightMap(seed, baseHeight) {
+function generateHeightMap(seed, zones) {
   const noise2D = createNoise2D(() => seed * 0.00001);
   const data = [];
 
@@ -40,20 +39,32 @@ function generateHeightMap(seed, baseHeight) {
     for (let y = 0; y <= SEGMENTS; y++) {
       const nx = x / SEGMENTS - 0.5;
       const ny = y / SEGMENTS - 0.5;
-      const e = noise2D(nx * 2, ny * 2);
-      data[x][y] = e * baseHeight;
+      let height = noise2D(nx * 2, ny * 2);
+
+      const zone = y < SEGMENTS / 3 ? 'north' : y > (SEGMENTS * 2) / 3 ? 'south' : 'center';
+      height *= zones[zone].height;
+
+      // rio horizontal cortando o centro
+      if (zones.river && Math.abs(y - SEGMENTS / 2) < zones.river.width) height = -0.5;
+
+      // lago no centro
+      const dx = x - SEGMENTS / 2;
+      const dy = y - SEGMENTS / 2;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (zones.lake && dist < zones.lake.radius) height = zones.lake.depth;
+
+      data[x][y] = height;
     }
   }
-
   return data;
 }
 
-function Terrain({ seed, settings }) {
+function Terrain({ seed, zones }) {
   const meshRef = useRef();
   const [geometry, setGeometry] = useState();
 
   useEffect(() => {
-    const heightMap = generateHeightMap(seed, settings.baseHeight);
+    const heightMap = generateHeightMap(seed, zones);
     const geom = new THREE.PlaneGeometry(
       TERRAIN_SIZE,
       TERRAIN_SIZE,
@@ -66,18 +77,14 @@ function Terrain({ seed, settings }) {
     for (let i = 0; i < verts.count; i++) {
       const x = i % (SEGMENTS + 1);
       const y = Math.floor(i / (SEGMENTS + 1));
-      let h = heightMap[x]?.[y] || 0;
-
-      // Simula rio
-      if (settings.river && Math.abs(y - SEGMENTS / 2) < 2) h = -0.5;
-
+      const h = heightMap[x][y];
       verts.setY(i, h);
     }
 
     verts.needsUpdate = true;
     geom.computeVertexNormals();
     setGeometry(geom);
-  }, [seed, settings]);
+  }, [seed, zones]);
 
   return geometry ? (
     <mesh ref={meshRef} geometry={geometry} receiveShadow castShadow>
@@ -88,11 +95,11 @@ function Terrain({ seed, settings }) {
 
 function App() {
   const [seed, setSeed] = useState(Math.floor(Math.random() * 100000));
-  const [prompt, setPrompt] = useState('montanhas com rio');
-  const [settings, setSettings] = useState(parsePrompt(prompt));
+  const [prompt, setPrompt] = useState('montanhas ao norte, planície no centro, rio largo cortando o sul, lago pequeno no meio');
+  const [zones, setZones] = useState(parsePrompt(prompt));
 
   useEffect(() => {
-    setSettings(parsePrompt(prompt));
+    setZones(parsePrompt(prompt));
   }, [prompt]);
 
   return (
@@ -119,7 +126,7 @@ function App() {
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Ex: montanhas com rio"
+          placeholder="Ex: montanhas ao norte, lago no centro, rio fino"
           style={{
             marginTop: 6,
             marginBottom: 12,
@@ -167,7 +174,7 @@ function App() {
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
-        <Terrain seed={seed} settings={settings} />
+        <Terrain seed={seed} zones={zones} />
         <OrbitControls />
       </Canvas>
     </div>
