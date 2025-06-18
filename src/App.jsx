@@ -7,7 +7,31 @@ import * as THREE from 'three';
 const TERRAIN_SIZE = 50;
 const SEGMENTS = 64;
 
-function generateHeightMap(seed) {
+const keywordMap = {
+  montanha: { height: 8 },
+  montanhas: { height: 8 },
+  planicie: { height: 1 },
+  reta: { height: 0.5 },
+  rio: { river: true },
+  floresta: { trees: true },
+};
+
+function parsePrompt(prompt) {
+  const words = prompt.toLowerCase().split(/\s+/);
+  const settings = {
+    baseHeight: 2,
+    river: false,
+    trees: false,
+  };
+  for (let word of words) {
+    if (keywordMap[word]?.height !== undefined) settings.baseHeight = keywordMap[word].height;
+    if (keywordMap[word]?.river) settings.river = true;
+    if (keywordMap[word]?.trees) settings.trees = true;
+  }
+  return settings;
+}
+
+function generateHeightMap(seed, baseHeight) {
   const noise2D = createNoise2D(() => seed * 0.00001);
   const data = [];
 
@@ -16,20 +40,20 @@ function generateHeightMap(seed) {
     for (let y = 0; y <= SEGMENTS; y++) {
       const nx = x / SEGMENTS - 0.5;
       const ny = y / SEGMENTS - 0.5;
-      const e = noise2D(nx * 2, ny * 2); // escala
-      data[x][y] = e;
+      const e = noise2D(nx * 2, ny * 2);
+      data[x][y] = e * baseHeight;
     }
   }
 
   return data;
 }
 
-function Terrain({ seed }) {
+function Terrain({ seed, settings }) {
   const meshRef = useRef();
   const [geometry, setGeometry] = useState();
 
   useEffect(() => {
-    const heightMap = generateHeightMap(seed);
+    const heightMap = generateHeightMap(seed, settings.baseHeight);
     const geom = new THREE.PlaneGeometry(
       TERRAIN_SIZE,
       TERRAIN_SIZE,
@@ -42,32 +66,37 @@ function Terrain({ seed }) {
     for (let i = 0; i < verts.count; i++) {
       const x = i % (SEGMENTS + 1);
       const y = Math.floor(i / (SEGMENTS + 1));
-      const height = heightMap[x]?.[y] || 0;
-      verts.setY(i, height * 5); // altura do relevo
+      let h = heightMap[x]?.[y] || 0;
+
+      // Simula rio
+      if (settings.river && Math.abs(y - SEGMENTS / 2) < 2) h = -0.5;
+
+      verts.setY(i, h);
     }
 
     verts.needsUpdate = true;
     geom.computeVertexNormals();
     setGeometry(geom);
-  }, [seed]);
+  }, [seed, settings]);
 
   return geometry ? (
     <mesh ref={meshRef} geometry={geometry} receiveShadow castShadow>
-      <meshStandardMaterial
-        vertexColors={false}
-        color="#88bb88"
-        flatShading={true}
-      />
+      <meshStandardMaterial color="#88bb88" flatShading />
     </mesh>
   ) : null;
 }
 
 function App() {
   const [seed, setSeed] = useState(Math.floor(Math.random() * 100000));
+  const [prompt, setPrompt] = useState('montanhas com rio');
+  const [settings, setSettings] = useState(parsePrompt(prompt));
+
+  useEffect(() => {
+    setSettings(parsePrompt(prompt));
+  }, [prompt]);
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Lateral */}
       <div
         style={{
           position: 'absolute',
@@ -84,13 +113,29 @@ function App() {
         }}
       >
         <h2 style={{ marginBottom: 16 }}>🧠 MUNDRIX</h2>
-        <p>
-          <strong>Seed:</strong> {seed}
-        </p>
+
+        <label>Scene Prompt</label>
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Ex: montanhas com rio"
+          style={{
+            marginTop: 6,
+            marginBottom: 12,
+            padding: '8px',
+            width: '100%',
+            background: '#222',
+            color: '#fff',
+            border: '1px solid #444',
+            borderRadius: '6px',
+          }}
+        />
+
         <button
           onClick={() => setSeed(Math.floor(Math.random() * 100000))}
           style={{
-            marginTop: 16,
+            marginTop: 8,
             padding: '8px 16px',
             background: '#444',
             color: '#fff',
@@ -100,11 +145,10 @@ function App() {
             width: '100%',
           }}
         >
-          🔁 Regenerate Terrain
+          🔁 Regenerate
         </button>
       </div>
 
-      {/* Canvas 3D */}
       <Canvas
         shadows
         camera={{ position: [30, 20, 30], fov: 45 }}
@@ -123,7 +167,7 @@ function App() {
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
-        <Terrain seed={seed} />
+        <Terrain seed={seed} settings={settings} />
         <OrbitControls />
       </Canvas>
     </div>
