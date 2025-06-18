@@ -64,6 +64,8 @@ function App() {
   const [prompt, setPrompt] = useState('village castle');
   const [seed, setSeed] = useState(generateSeed());
   const sceneRef = useRef();
+console.log("Prompt:", prompt);
+console.log("Seed:", seed);
 
   const wordCount = prompt
     .toLowerCase()
