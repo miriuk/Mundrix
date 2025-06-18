@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as THREE from 'three';
 
 const keywordMap = {
@@ -58,6 +59,24 @@ function Scene({ prompt }) {
 
 function App() {
   const [prompt, setPrompt] = useState('castle village');
+  const sceneRef = useRef();
+
+  const handleExport = () => {
+    const exporter = new GLTFExporter();
+    exporter.parse(
+      sceneRef.current,
+      (gltf) => {
+        const blob = new Blob([gltf], { type: 'model/gltf-binary' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mundrix_world.glb';
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      { binary: true }
+    );
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
@@ -79,7 +98,31 @@ function App() {
           border: '1px solid #444',
         }}
       />
-      <Canvas shadows camera={{ position: [10, 5, 10], fov: 50 }}>
+
+      <button
+        onClick={handleExport}
+        style={{
+          position: 'absolute',
+          top: 20,
+          right: 20,
+          padding: '8px 16px',
+          fontSize: '14px',
+          zIndex: 10,
+          borderRadius: '8px',
+          background: '#00d1b2',
+          color: '#fff',
+          border: 'none',
+          cursor: 'pointer',
+        }}
+      >
+        ⬇️ Export World (.glb)
+      </button>
+
+      <Canvas
+        shadows
+        camera={{ position: [10, 5, 10], fov: 50 }}
+        onCreated={({ scene }) => (sceneRef.current = scene)}
+      >
         <Scene prompt={prompt} />
       </Canvas>
     </div>
