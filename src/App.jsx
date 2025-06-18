@@ -20,11 +20,10 @@ function Box({ position, color, size }) {
   );
 }
 
-function Scene({ prompt }) {
+function Scene({ prompt, seed }) {
   const blocks = [];
-
   const words = prompt.toLowerCase().split(' ');
-  let x = -5;
+  let x = -5 + seed;
 
   words.forEach((word) => {
     const item = keywordMap[word];
@@ -32,7 +31,7 @@ function Scene({ prompt }) {
       for (let i = 0; i < item.count; i++) {
         blocks.push(
           <Box
-            key={`${word}-${i}`}
+            key={`${word}-${i}-${seed}`}
             position={[x + i * 1.5, item.size[1] / 2, 0]}
             size={item.size}
             color={item.color}
@@ -57,9 +56,26 @@ function Scene({ prompt }) {
   );
 }
 
+function generateSeed() {
+  return Math.floor(Math.random() * 1000);
+}
+
 function App() {
-  const [prompt, setPrompt] = useState('castle village');
+  const [prompt, setPrompt] = useState('village castle');
+  const [seed, setSeed] = useState(generateSeed());
   const sceneRef = useRef();
+
+  const wordCount = prompt
+    .toLowerCase()
+    .split(' ')
+    .filter((w) => keywordMap[w])?.length || 0;
+
+  const blockCount = prompt
+    .toLowerCase()
+    .split(' ')
+    .reduce((total, w) => {
+      return total + (keywordMap[w]?.count || 0);
+    }, 0);
 
   const handleExport = () => {
     const exporter = new GLTFExporter();
@@ -70,7 +86,7 @@ function App() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'mundrix_world.glb';
+        a.download = `mundrix_seed${seed}.glb`;
         a.click();
         URL.revokeObjectURL(url);
       },
@@ -79,54 +95,87 @@ function App() {
   };
 
   return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <input
-        type="text"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        placeholder="Describe your world..."
+    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Interface lateral */}
+      <div
         style={{
           position: 'absolute',
-          top: 20,
-          left: 20,
-          padding: '8px 12px',
-          zIndex: 10,
-          borderRadius: '8px',
-          fontSize: '16px',
-          background: '#1f1f1f',
-          color: '#fff',
-          border: '1px solid #444',
-        }}
-      />
-
-      <button
-        onClick={handleExport}
-        style={{
-          position: 'absolute',
-          top: 20,
-          right: 20,
-          padding: '8px 16px',
-          fontSize: '14px',
-          zIndex: 10,
-          borderRadius: '8px',
-          background: '#00d1b2',
-          color: '#fff',
-          border: 'none',
-          cursor: 'pointer',
+          top: 0,
+          left: 0,
+          width: '280px',
+          height: '100%',
+          background: '#121212',
+          padding: '24px 16px',
+          color: 'white',
+          zIndex: 20,
+          fontFamily: 'monospace',
+          borderRight: '1px solid #333',
         }}
       >
-        ⬇️ Export World (.glb)
-      </button>
+        <h2 style={{ marginBottom: '16px' }}>🧠 MUNDRIX</h2>
 
+        <label style={{ fontSize: '13px' }}>World Prompt</label>
+        <input
+          type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="e.g. castle village"
+          style={{
+            marginTop: '4px',
+            marginBottom: '16px',
+            padding: '8px',
+            width: '100%',
+            borderRadius: '6px',
+            background: '#222',
+            color: '#fff',
+            border: '1px solid #444',
+          }}
+        />
+
+        <div style={{ marginBottom: '12px', fontSize: '13px' }}>
+          <strong>Seed:</strong> {seed}
+        </div>
+        <div style={{ marginBottom: '12px', fontSize: '13px' }}>
+          <strong>Keywords:</strong> {wordCount}
+        </div>
+        <div style={{ marginBottom: '20px', fontSize: '13px' }}>
+          <strong>Blocks Generated:</strong> {blockCount}
+        </div>
+
+        <button
+          onClick={() => setSeed(generateSeed())}
+          style={{
+            width: '100%',
+            padding: '8px 0',
+            background: '#444',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            marginBottom: '8px',
+            cursor: 'pointer',
+          }}
+        >
+          🔁 Regenerate
+        </button>
+
+        <button
+          onClick={handleExport}
+          style={{
+            width: '100%',
+            padding: '8px 0',
+            background: '#00d1b2',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+          }}
+        >
+          ⬇️ Export .glb
+        </button>
+      </div>
+
+      {/* Canvas 3D */}
       <Canvas
         shadows
         camera={{ position: [10, 5, 10], fov: 50 }}
-        onCreated={({ scene }) => (sceneRef.current = scene)}
-      >
-        <Scene prompt={prompt} />
-      </Canvas>
-    </div>
-  );
-}
-
-export default App;
+        onCreated={({ sce
