@@ -23,10 +23,10 @@ function parsePrompt(prompt) {
   if (lower.includes('montanha') && lower.includes('centro')) zones.center.height = 8;
   if (lower.includes('reta') || lower.includes('plano') || lower.includes('planicie')) zones.center.height = 1;
 
-  if (lower.includes('rio')) zones.river = { width: 3 };
-  if (lower.includes('rio fino')) zones.river = { width: 1 };
+  if (lower.includes('rio')) zones.river = { width: lower.includes('largo') ? 3 : 1 };
   if (lower.includes('lago')) zones.lake = { radius: 5, depth: -1 };
 
+  console.log('📌 Parsed zones:', zones);
   return zones;
 }
 
@@ -78,7 +78,7 @@ function Terrain({ seed, zones }) {
       const x = i % (SEGMENTS + 1);
       const y = Math.floor(i / (SEGMENTS + 1));
       const h = heightMap[x][y];
-      verts.setY(i, h);
+      verts.setY(i, isNaN(h) ? 0 : h);
     }
 
     verts.needsUpdate = true;
@@ -95,7 +95,7 @@ function Terrain({ seed, zones }) {
 
 function App() {
   const [seed, setSeed] = useState(Math.floor(Math.random() * 100000));
-  const [prompt, setPrompt] = useState('montanhas ao norte, planície no centro, rio largo cortando o sul, lago pequeno no meio');
+  const [prompt, setPrompt] = useState('montanhas ao norte, planície no centro, rio largo no sul, lago pequeno no meio');
   const [zones, setZones] = useState(parsePrompt(prompt));
 
   useEffect(() => {
@@ -121,7 +121,7 @@ function App() {
       >
         <h2 style={{ marginBottom: 16 }}>🧠 MUNDRIX</h2>
 
-        <label>Scene Prompt</label>
+        <label>Prompt</label>
         <input
           type="text"
           value={prompt}
@@ -152,7 +152,7 @@ function App() {
             width: '100%',
           }}
         >
-          🔁 Regenerate
+          🔁 Regenerate Terrain
         </button>
       </div>
 
