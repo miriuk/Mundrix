@@ -3,16 +3,6 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as THREE from 'three';
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css' // <-- isso aqui é ESSENCIAL
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-)
 
 const keywordMap = {
   village: { color: '#c4a484', count: 5, size: [1, 1, 1] },
@@ -83,9 +73,7 @@ function App() {
   const blockCount = prompt
     .toLowerCase()
     .split(' ')
-    .reduce((total, w) => {
-      return total + (keywordMap[w]?.count || 0);
-    }, 0);
+    .reduce((total, w) => total + (keywordMap[w]?.count || 0), 0);
 
   const handleExport = () => {
     const exporter = new GLTFExporter();
@@ -106,7 +94,6 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Interface lateral */}
       <div
         style={{
           position: 'absolute',
@@ -184,7 +171,6 @@ function App() {
         </button>
       </div>
 
-      {/* Canvas 3D */}
       <Canvas
         shadows
         camera={{ position: [10, 5, 10], fov: 50 }}
