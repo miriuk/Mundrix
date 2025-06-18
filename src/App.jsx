@@ -179,7 +179,7 @@ function App() {
         shadows
         camera={{ position: [10, 5, 10], fov: 50 }}
         onCreated={({ scene }) => (sceneRef.current = scene)}
-        style={{ marginLeft: '280px' }}
+        style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
       >
         <Scene prompt={prompt} seed={seed} />
       </Canvas>
