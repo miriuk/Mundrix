@@ -4,6 +4,20 @@ import { OrbitControls } from '@react-three/drei';
 function App() {
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
+<input
+  type="text"
+  placeholder="Describe your world..."
+  style={{
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    padding: '8px 12px',
+    zIndex: 10,
+    borderRadius: '8px'
+  }}
+/>
+
+
       <Canvas shadows camera={{ position: [3, 3, 3], fov: 50 }}>
         <ambientLight intensity={0.3} />
         <directionalLight
