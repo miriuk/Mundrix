@@ -1,118 +1,69 @@
 import { useRef, useState, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
-import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
+import * as THREE from 'three';
+
+const TERRAIN_SIZE = 50;
+const SEGMENTS = 64;
 
 function generateHeightMap(seed) {
-  const noise2D = createNoise2D(() => seed * 0.0001); // seed como função pseudo-randômica
-  const heights = [];
+  const noise2D = createNoise2D(() => seed * 0.00001);
+  const data = [];
 
-  for (let x = 0; x <= 64; x++) {
-    for (let y = 0; y <= 64; y++) {
-      const nx = x / 64 - 0.5;
-      const ny = y / 64 - 0.5;
-      const value = noise2D(nx * 4, ny * 4);
-      heights.push(value);
+  for (let x = 0; x <= SEGMENTS; x++) {
+    data[x] = [];
+    for (let y = 0; y <= SEGMENTS; y++) {
+      const nx = x / SEGMENTS - 0.5;
+      const ny = y / SEGMENTS - 0.5;
+      const e = noise2D(nx * 2, ny * 2); // escala
+      data[x][y] = e;
     }
   }
 
-  return heights;
+  return data;
 }
 
-function Terrain({ seed, sceneRef }) {
-  const ref = useRef();
-  const [heights, setHeights] = useState([]);
+function Terrain({ seed }) {
+  const meshRef = useRef();
+  const [geometry, setGeometry] = useState();
 
   useEffect(() => {
-    const newHeights = generateHeightMap(seed);
-    setHeights(newHeights);
+    const heightMap = generateHeightMap(seed);
+    const geom = new THREE.PlaneGeometry(
+      TERRAIN_SIZE,
+      TERRAIN_SIZE,
+      SEGMENTS,
+      SEGMENTS
+    );
+    geom.rotateX(-Math.PI / 2);
+
+    const verts = geom.attributes.position;
+    for (let i = 0; i < verts.count; i++) {
+      const x = i % (SEGMENTS + 1);
+      const y = Math.floor(i / (SEGMENTS + 1));
+      const height = heightMap[x]?.[y] || 0;
+      verts.setY(i, height * 5); // altura do relevo
+    }
+
+    verts.needsUpdate = true;
+    geom.computeVertexNormals();
+    setGeometry(geom);
   }, [seed]);
 
-  useEffect(() => {
-    if (ref.current && heights.length > 0) {
-      const positions = ref.current.geometry.attributes.position;
-      for (let i = 0; i < positions.count; i++) {
-        const h = heights[i];
-        positions.setY(i, h * 5); // escala vertical
-      }
-      positions.needsUpdate = true;
-      ref.current.geometry.computeVertexNormals();
-    }
-  }, [heights]);
-
-  return (
-    <>
-      <mesh
-        ref={ref}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-        castShadow
-        ref={sceneRef}
-      >
-        <planeGeometry args={[TERRAIN_SIZE, TERRAIN_SIZE, SEGMENTS, SEGMENTS]} />
-        <meshStandardMaterial vertexColors={false} color="#2e8b57" />
-      </mesh>
-
-      {/* Simulação de rio */}
-      <mesh
-        position={[0, 0.01, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
-        <planeGeometry args={[TERRAIN_SIZE * 0.8, 2]} />
-        <meshStandardMaterial color="#3399ff" opacity={0.8} transparent />
-      </mesh>
-    </>
-  );
-}
-
-function generateSeed() {
-  return Math.floor(Math.random() * 1000);
+  return geometry ? (
+    <mesh ref={meshRef} geometry={geometry} receiveShadow castShadow>
+      <meshStandardMaterial
+        vertexColors={false}
+        color="#88bb88"
+        flatShading={true}
+      />
+    </mesh>
+  ) : null;
 }
 
 function App() {
-  const [seed, setSeed] = useState(generateSeed());
-  const terrainRef = useRef();
-
-  const handleExport = () => {
-    const exporter = new GLTFExporter();
-    exporter.parse(
-      terrainRef.current,
-      (gltf) => {
-        const blob = new Blob([gltf], { type: 'model/gltf-binary' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `mundrix_landscape_${seed}.glb`;
-        a.click();
-        URL.revokeObjectURL(url);
-      },
-      { binary: true }
-    );
-  };
-
-  const saveWorld = () => {
-    const geo = terrainRef.current.geometry.attributes.position;
-    const data = [];
-
-    for (let i = 0; i < geo.count; i++) {
-      data.push({
-        x: geo.getX(i),
-        y: geo.getY(i),
-        z: geo.getZ(i),
-      });
-    }
-
-    console.log("🌍 World saved:", {
-      seed,
-      terrain: data,
-    });
-
-    // Aqui você pode trocar por chamada de API
-    // fetch('/api/save', { method: 'POST', body: JSON.stringify({ seed, terrain: data }) })
-  };
+  const [seed, setSeed] = useState(Math.floor(Math.random() * 100000));
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -124,64 +75,55 @@ function App() {
           left: 0,
           width: '280px',
           height: '100%',
-          background: '#121212',
-          padding: '24px 16px',
+          background: '#1c1c1c',
           color: 'white',
-          zIndex: 20,
+          padding: '24px 16px',
+          zIndex: 10,
           fontFamily: 'monospace',
           borderRight: '1px solid #333',
         }}
       >
-        <h2>Mundrix Landscape</h2>
-        <div style={{ fontSize: '14px', marginBottom: '8px' }}>
-          Seed: <strong>{seed}</strong>
-        </div>
-
+        <h2 style={{ marginBottom: 16 }}>🧠 MUNDRIX</h2>
+        <p>
+          <strong>Seed:</strong> {seed}
+        </p>
         <button
-          onClick={() => setSeed(generateSeed())}
-          style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
+          onClick={() => setSeed(Math.floor(Math.random() * 100000))}
+          style={{
+            marginTop: 16,
+            padding: '8px 16px',
+            background: '#444',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            width: '100%',
+          }}
         >
           🔁 Regenerate Terrain
         </button>
-
-        <button
-          onClick={handleExport}
-          style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
-        >
-          ⬇️ Export .GLB
-        </button>
-
-        <button
-          onClick={saveWorld}
-          style={{
-            width: '100%',
-            padding: '10px',
-            backgroundColor: '#00d1b2',
-            border: 'none',
-            color: 'white',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-          }}
-        >
-          💾 Save World (JSON)
-        </button>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas 3D */}
       <Canvas
         shadows
-        camera={{ position: [20, 15, 20], fov: 45 }}
+        camera={{ position: [30, 20, 30], fov: 45 }}
         style={{
           marginLeft: '280px',
-          height: '100vh',
           width: 'calc(100vw - 280px)',
-zIndex: 0, // <-- IMPORTANTE
-    position: 'relative',
+          height: '100vh',
+          background: '#000',
         }}
       >
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 20, 10]} intensity={1} castShadow />
-        <Terrain seed={seed} sceneRef={terrainRef} />
+        <ambientLight intensity={0.3} />
+        <directionalLight
+          position={[30, 50, 20]}
+          castShadow
+          intensity={1.2}
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+        />
+        <Terrain seed={seed} />
         <OrbitControls />
       </Canvas>
     </div>
