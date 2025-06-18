@@ -4,54 +4,77 @@ import { OrbitControls } from '@react-three/drei';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as THREE from 'three';
 
-const keywordMap = {
-  village: { color: '#c4a484', count: 5, size: [1, 1, 1] },
-  castle: { color: '#808080', count: 3, size: [2, 2, 2] },
-  mountain: { color: '#8b8b7a', count: 2, size: [3, 2, 2] },
-  tower: { color: '#555555', count: 2, size: [0.5, 3, 0.5] },
-};
-
-function Box({ position, color, size }) {
+function BoxStructure({ position }) {
   return (
-    <mesh position={position} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={color} />
-    </mesh>
+    <group position={position}>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color="#c4a484" />
+      </mesh>
+      <mesh position={[0, 0.75, 0]} castShadow receiveShadow>
+        <coneGeometry args={[0.7, 1, 4]} />
+        <meshStandardMaterial color="#84563c" />
+      </mesh>
+    </group>
   );
 }
 
-function Scene({ prompt, seed }) {
-console.log("Rendering Scene with blocks:", blocks.length);
-  const blocks = [];
-  const words = prompt.toLowerCase().split(' ');
-  let x = -5 + seed;
+function Tower({ position }) {
+  return (
+    <group position={position}>
+      <mesh castShadow receiveShadow>
+        <cylinderGeometry args={[0.4, 0.4, 3, 12]} />
+        <meshStandardMaterial color="#555" />
+      </mesh>
+    </group>
+  );
+}
 
-  words.forEach((word) => {
-    const item = keywordMap[word];
-    if (item) {
-      for (let i = 0; i < item.count; i++) {
-        blocks.push(
-          <Box
-            key={`${word}-${i}-${seed}`}
-            position={[x + i * 1.5, item.size[1] / 2, 0]}
-            size={item.size}
-            color={item.color}
-          />
-        );
-      }
-      x += item.count * 1.5 + 1;
+function Scene({ prompt, seed, sceneRef }) {
+  const elements = [];
+  const lower = prompt.toLowerCase();
+  let x = -5 + (seed % 10);
+
+  if (lower.includes('village')) {
+    for (let i = 0; i < 5; i++) {
+      elements.push(<BoxStructure key={`village-${i}`} position={[x + i * 2, 0.5, 0]} />);
     }
-  });
+    x += 11;
+  }
+
+  if (lower.includes('castle')) {
+    for (let i = 0; i < 3; i++) {
+      elements.push(<BoxStructure key={`castle-${i}`} position={[x + i * 2.5, 0.5, 0]} />);
+    }
+    x += 9;
+  }
+
+  if (lower.includes('tower')) {
+    elements.push(<Tower key="tower" position={[x, 1.5, 0]} />);
+    x += 3;
+  }
+
+  if (lower.includes('mountain')) {
+    elements.push(
+      <mesh key="mountain" position={[x, 1.5, 0]} castShadow receiveShadow>
+        <coneGeometry args={[2, 3, 8]} />
+        <meshStandardMaterial color="#444" />
+      </mesh>
+    );
+  }
 
   return (
     <>
+      <group ref={sceneRef}>{elements}</group>
+
       <ambientLight intensity={0.3} />
       <directionalLight castShadow position={[10, 10, 10]} intensity={1.2} />
-      {blocks}
+
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[50, 50]} />
-        <shadowMaterial opacity={0.3} />
+        <meshStandardMaterial color="#1a1a1a" />
       </mesh>
+
       <OrbitControls />
     </>
   );
@@ -62,21 +85,9 @@ function generateSeed() {
 }
 
 function App() {
-  const [prompt, setPrompt] = useState('village castle');
+  const [prompt, setPrompt] = useState('a medieval village with a tower');
   const [seed, setSeed] = useState(generateSeed());
   const sceneRef = useRef();
-console.log("Prompt:", prompt);
-console.log("Seed:", seed);
-
-  const wordCount = prompt
-    .toLowerCase()
-    .split(' ')
-    .filter((w) => keywordMap[w])?.length || 0;
-
-  const blockCount = prompt
-    .toLowerCase()
-    .split(' ')
-    .reduce((total, w) => total + (keywordMap[w]?.count || 0), 0);
 
   const handleExport = () => {
     const exporter = new GLTFExporter();
@@ -97,6 +108,7 @@ console.log("Seed:", seed);
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* Menu lateral */}
       <div
         style={{
           position: 'absolute',
@@ -119,7 +131,7 @@ console.log("Seed:", seed);
           type="text"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g. castle village"
+          placeholder="e.g. a castle with towers"
           style={{
             marginTop: '4px',
             marginBottom: '16px',
@@ -134,12 +146,6 @@ console.log("Seed:", seed);
 
         <div style={{ marginBottom: '12px', fontSize: '13px' }}>
           <strong>Seed:</strong> {seed}
-        </div>
-        <div style={{ marginBottom: '12px', fontSize: '13px' }}>
-          <strong>Keywords:</strong> {wordCount}
-        </div>
-        <div style={{ marginBottom: '20px', fontSize: '13px' }}>
-          <strong>Blocks Generated:</strong> {blockCount}
         </div>
 
         <button
@@ -174,23 +180,14 @@ console.log("Seed:", seed);
         </button>
       </div>
 
+      {/* Canvas */}
       <Canvas
-  shadows
-  camera={{ position: [10, 10, 10], fov: 50 }}
-  style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
->
-  <ambientLight intensity={0.5} />
-  <directionalLight position={[5, 5, 5]} intensity={1} />
-  <mesh>
-    <boxGeometry args={[1, 1, 1]} />
-    <meshStandardMaterial color="hotpink" />
-  </mesh>
-<mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-  <planeGeometry args={[50, 50]} />
-  <meshStandardMaterial color="#fff" />
-</mesh>
-  <OrbitControls />
-</Canvas>
+        shadows
+        camera={{ position: [10, 5, 10], fov: 50 }}
+        style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
+      >
+        <Scene prompt={prompt} seed={seed} sceneRef={sceneRef} />
+      </Canvas>
     </div>
   );
 }
