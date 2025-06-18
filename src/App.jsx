@@ -3,20 +3,17 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as THREE from 'three';
-import SimplexNoise from 'simplex-noise';
-
-const TERRAIN_SIZE = 50;
-const SEGMENTS = 64;
+import { createNoise2D } from 'simplex-noise';
 
 function generateHeightMap(seed) {
-  const simplex = new SimplexNoise(seed.toString());
+  const noise2D = createNoise2D(() => seed * 0.0001); // seed como função pseudo-randômica
   const heights = [];
 
-  for (let x = 0; x <= SEGMENTS; x++) {
-    for (let y = 0; y <= SEGMENTS; y++) {
-      const nx = x / SEGMENTS - 0.5;
-      const ny = y / SEGMENTS - 0.5;
-      const value = simplex.noise2D(nx * 4, ny * 4);
+  for (let x = 0; x <= 64; x++) {
+    for (let y = 0; y <= 64; y++) {
+      const nx = x / 64 - 0.5;
+      const ny = y / 64 - 0.5;
+      const value = noise2D(nx * 4, ny * 4);
       heights.push(value);
     }
   }
