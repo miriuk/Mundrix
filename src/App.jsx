@@ -21,6 +21,7 @@ function Box({ position, color, size }) {
 }
 
 function Scene({ prompt, seed }) {
+console.log("Rendering Scene with blocks:", blocks.length);
   const blocks = [];
   const words = prompt.toLowerCase().split(' ');
   let x = -5 + seed;
@@ -175,7 +176,7 @@ console.log("Seed:", seed);
 
       <Canvas
   shadows
-  camera={{ position: [3, 3, 3], fov: 50 }}
+  camera={{ position: [10, 10, 10], fov: 50 }}
   style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
 >
   <ambientLight intensity={0.5} />
@@ -184,6 +185,10 @@ console.log("Seed:", seed);
     <boxGeometry args={[1, 1, 1]} />
     <meshStandardMaterial color="hotpink" />
   </mesh>
+<mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+  <planeGeometry args={[50, 50]} />
+  <meshStandardMaterial color="#333" />
+</mesh>
   <OrbitControls />
 </Canvas>
     </div>
