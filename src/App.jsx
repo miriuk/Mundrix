@@ -1,81 +1,72 @@
-import { useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useRef, useState, useEffect } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import * as THREE from 'three';
+import SimplexNoise from 'simplex-noise';
 
-function BoxStructure({ position }) {
-  return (
-    <group position={position}>
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#c4a484" />
-      </mesh>
-      <mesh position={[0, 0.75, 0]} castShadow receiveShadow>
-        <coneGeometry args={[0.7, 1, 4]} />
-        <meshStandardMaterial color="#84563c" />
-      </mesh>
-    </group>
-  );
+const TERRAIN_SIZE = 50;
+const SEGMENTS = 64;
+
+function generateHeightMap(seed) {
+  const simplex = new SimplexNoise(seed.toString());
+  const heights = [];
+
+  for (let x = 0; x <= SEGMENTS; x++) {
+    for (let y = 0; y <= SEGMENTS; y++) {
+      const nx = x / SEGMENTS - 0.5;
+      const ny = y / SEGMENTS - 0.5;
+      const value = simplex.noise2D(nx * 4, ny * 4);
+      heights.push(value);
+    }
+  }
+
+  return heights;
 }
 
-function Tower({ position }) {
-  return (
-    <group position={position}>
-      <mesh castShadow receiveShadow>
-        <cylinderGeometry args={[0.4, 0.4, 3, 12]} />
-        <meshStandardMaterial color="#555" />
-      </mesh>
-    </group>
-  );
-}
+function Terrain({ seed, sceneRef }) {
+  const ref = useRef();
+  const [heights, setHeights] = useState([]);
 
-function Scene({ prompt, seed, sceneRef }) {
-  const elements = [];
-  const lower = prompt.toLowerCase();
-  let x = -5 + (seed % 10);
+  useEffect(() => {
+    const newHeights = generateHeightMap(seed);
+    setHeights(newHeights);
+  }, [seed]);
 
-  if (lower.includes('village')) {
-    for (let i = 0; i < 5; i++) {
-      elements.push(<BoxStructure key={`village-${i}`} position={[x + i * 2, 0.5, 0]} />);
+  useEffect(() => {
+    if (ref.current && heights.length > 0) {
+      const positions = ref.current.geometry.attributes.position;
+      for (let i = 0; i < positions.count; i++) {
+        const h = heights[i];
+        positions.setY(i, h * 5); // escala vertical
+      }
+      positions.needsUpdate = true;
+      ref.current.geometry.computeVertexNormals();
     }
-    x += 11;
-  }
-
-  if (lower.includes('castle')) {
-    for (let i = 0; i < 3; i++) {
-      elements.push(<BoxStructure key={`castle-${i}`} position={[x + i * 2.5, 0.5, 0]} />);
-    }
-    x += 9;
-  }
-
-  if (lower.includes('tower')) {
-    elements.push(<Tower key="tower" position={[x, 1.5, 0]} />);
-    x += 3;
-  }
-
-  if (lower.includes('mountain')) {
-    elements.push(
-      <mesh key="mountain" position={[x, 1.5, 0]} castShadow receiveShadow>
-        <coneGeometry args={[2, 3, 8]} />
-        <meshStandardMaterial color="#444" />
-      </mesh>
-    );
-  }
+  }, [heights]);
 
   return (
     <>
-      <group ref={sceneRef}>{elements}</group>
-
-      <ambientLight intensity={0.3} />
-      <directionalLight castShadow position={[10, 10, 10]} intensity={1.2} />
-
-      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[50, 50]} />
-        <meshStandardMaterial color="#1a1a1a" />
+      <mesh
+        ref={ref}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        castShadow
+        ref={sceneRef}
+      >
+        <planeGeometry args={[TERRAIN_SIZE, TERRAIN_SIZE, SEGMENTS, SEGMENTS]} />
+        <meshStandardMaterial vertexColors={false} color="#2e8b57" />
       </mesh>
 
-      <OrbitControls />
+      {/* Simulação de rio */}
+      <mesh
+        position={[0, 0.01, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[TERRAIN_SIZE * 0.8, 2]} />
+        <meshStandardMaterial color="#3399ff" opacity={0.8} transparent />
+      </mesh>
     </>
   );
 }
@@ -85,20 +76,19 @@ function generateSeed() {
 }
 
 function App() {
-  const [prompt, setPrompt] = useState('a medieval village with a tower');
   const [seed, setSeed] = useState(generateSeed());
-  const sceneRef = useRef();
+  const terrainRef = useRef();
 
   const handleExport = () => {
     const exporter = new GLTFExporter();
     exporter.parse(
-      sceneRef.current,
+      terrainRef.current,
       (gltf) => {
         const blob = new Blob([gltf], { type: 'model/gltf-binary' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `mundrix_seed${seed}.glb`;
+        a.download = `mundrix_landscape_${seed}.glb`;
         a.click();
         URL.revokeObjectURL(url);
       },
@@ -106,9 +96,30 @@ function App() {
     );
   };
 
+  const saveWorld = () => {
+    const geo = terrainRef.current.geometry.attributes.position;
+    const data = [];
+
+    for (let i = 0; i < geo.count; i++) {
+      data.push({
+        x: geo.getX(i),
+        y: geo.getY(i),
+        z: geo.getZ(i),
+      });
+    }
+
+    console.log("🌍 World saved:", {
+      seed,
+      terrain: data,
+    });
+
+    // Aqui você pode trocar por chamada de API
+    // fetch('/api/save', { method: 'POST', body: JSON.stringify({ seed, terrain: data }) })
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Menu lateral */}
+      {/* Lateral */}
       <div
         style={{
           position: 'absolute',
@@ -124,69 +135,55 @@ function App() {
           borderRight: '1px solid #333',
         }}
       >
-        <h2 style={{ marginBottom: '16px' }}>🧠 MUNDRIX</h2>
-
-        <label style={{ fontSize: '13px' }}>World Prompt</label>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g. a castle with towers"
-          style={{
-            marginTop: '4px',
-            marginBottom: '16px',
-            padding: '8px',
-            width: '100%',
-            borderRadius: '6px',
-            background: '#222',
-            color: '#fff',
-            border: '1px solid #444',
-          }}
-        />
-
-        <div style={{ marginBottom: '12px', fontSize: '13px' }}>
-          <strong>Seed:</strong> {seed}
+        <h2>Mundrix Landscape</h2>
+        <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+          Seed: <strong>{seed}</strong>
         </div>
 
         <button
           onClick={() => setSeed(generateSeed())}
-          style={{
-            width: '100%',
-            padding: '8px 0',
-            background: '#444',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            marginBottom: '8px',
-            cursor: 'pointer',
-          }}
+          style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
         >
-          🔁 Regenerate
+          🔁 Regenerate Terrain
         </button>
 
         <button
           onClick={handleExport}
+          style={{ width: '100%', padding: '10px', marginBottom: '10px' }}
+        >
+          ⬇️ Export .GLB
+        </button>
+
+        <button
+          onClick={saveWorld}
           style={{
             width: '100%',
-            padding: '8px 0',
-            background: '#00d1b2',
-            color: '#fff',
+            padding: '10px',
+            backgroundColor: '#00d1b2',
             border: 'none',
-            borderRadius: '6px',
+            color: 'white',
+            fontWeight: 'bold',
             cursor: 'pointer',
           }}
         >
-          ⬇️ Export .glb
+          💾 Save World (JSON)
         </button>
       </div>
 
       {/* Canvas */}
       <Canvas
         shadows
-        camera={{ position: [10, 5, 10], fov: 50 }}
-        style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
+        camera={{ position: [20, 15, 20], fov: 45 }}
+        style={{
+          marginLeft: '280px',
+          height: '100vh',
+          width: 'calc(100vw - 280px)',
+        }}
       >
-        <Scene prompt={prompt} seed={seed} sceneRef={sceneRef} />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 20, 10]} intensity={1} castShadow />
+        <Terrain seed={seed} sceneRef={terrainRef} />
+        <OrbitControls />
       </Canvas>
     </div>
   );
