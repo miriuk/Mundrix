@@ -174,13 +174,18 @@ console.log("Seed:", seed);
       </div>
 
       <Canvas
-        shadows
-        camera={{ position: [10, 5, 10], fov: 50 }}
-        onCreated={({ scene }) => (sceneRef.current = scene)}
-        style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
-      >
-        <Scene prompt={prompt} seed={seed} />
-      </Canvas>
+  shadows
+  camera={{ position: [3, 3, 3], fov: 50 }}
+  style={{ marginLeft: '280px', height: '100vh', width: 'calc(100vw - 280px)' }}
+>
+  <ambientLight intensity={0.5} />
+  <directionalLight position={[5, 5, 5]} intensity={1} />
+  <mesh>
+    <boxGeometry args={[1, 1, 1]} />
+    <meshStandardMaterial color="hotpink" />
+  </mesh>
+  <OrbitControls />
+</Canvas>
     </div>
   );
 }
