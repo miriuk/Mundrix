@@ -7,30 +7,7 @@ import * as THREE from 'three';
 const TERRAIN_SIZE = 50;
 const SEGMENTS = 64;
 
-function parsePrompt(prompt) {
-  const zones = {
-    north: { height: 2 },
-    center: { height: 2 },
-    south: { height: 2 },
-    river: null,
-    lake: null,
-  };
-
-  const lower = prompt.toLowerCase();
-
-  if (lower.includes('montanha') && lower.includes('norte')) zones.north.height = 8;
-  if (lower.includes('montanha') && lower.includes('sul')) zones.south.height = 8;
-  if (lower.includes('montanha') && lower.includes('centro')) zones.center.height = 8;
-  if (lower.includes('reta') || lower.includes('plano') || lower.includes('planicie')) zones.center.height = 1;
-
-  if (lower.includes('rio')) zones.river = { width: lower.includes('largo') ? 3 : 1 };
-  if (lower.includes('lago')) zones.lake = { radius: 5, depth: -1 };
-
-  console.log('📌 Parsed zones:', zones);
-  return zones;
-}
-
-function generateHeightMap(seed, zones) {
+function generateHeightMap(seed, controls) {
   const noise2D = createNoise2D(() => seed * 0.00001);
   const data = [];
 
@@ -39,19 +16,27 @@ function generateHeightMap(seed, zones) {
     for (let y = 0; y <= SEGMENTS; y++) {
       const nx = x / SEGMENTS - 0.5;
       const ny = y / SEGMENTS - 0.5;
-      let height = noise2D(nx * 2, ny * 2);
+      let height = noise2D(nx * controls.noiseScale, ny * controls.noiseScale);
 
       const zone = y < SEGMENTS / 3 ? 'north' : y > (SEGMENTS * 2) / 3 ? 'south' : 'center';
-      height *= zones[zone].height;
+      if (zone === 'north' || zone === 'south') {
+        height *= controls.mountainHeight;
+      } else {
+        height *= controls.plainHeight;
+      }
 
-      // rio horizontal cortando o centro
-      if (zones.river && Math.abs(y - SEGMENTS / 2) < zones.river.width) height = -0.5;
+      // rio com transição suave
+      const riverFalloff = Math.exp(-Math.pow((y - SEGMENTS / 2) / controls.riverWidth, 2));
+      height = THREE.MathUtils.lerp(height, -0.8, riverFalloff);
 
-      // lago no centro
+      // lago circular com transição suave
       const dx = x - SEGMENTS / 2;
       const dy = y - SEGMENTS / 2;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (zones.lake && dist < zones.lake.radius) height = zones.lake.depth;
+      if (dist < controls.lakeRadius) {
+        const influence = 1 - dist / controls.lakeRadius;
+        height = THREE.MathUtils.lerp(height, controls.lakeDepth, influence);
+      }
 
       data[x][y] = height;
     }
@@ -59,12 +44,12 @@ function generateHeightMap(seed, zones) {
   return data;
 }
 
-function Terrain({ seed, zones }) {
+function Terrain({ seed, controls }) {
   const meshRef = useRef();
   const [geometry, setGeometry] = useState();
 
   useEffect(() => {
-    const heightMap = generateHeightMap(seed, zones);
+    const heightMap = generateHeightMap(seed, controls);
     const geom = new THREE.PlaneGeometry(
       TERRAIN_SIZE,
       TERRAIN_SIZE,
@@ -84,7 +69,7 @@ function Terrain({ seed, zones }) {
     verts.needsUpdate = true;
     geom.computeVertexNormals();
     setGeometry(geom);
-  }, [seed, zones]);
+  }, [seed, controls]);
 
   return geometry ? (
     <mesh ref={meshRef} geometry={geometry} receiveShadow castShadow>
@@ -95,12 +80,18 @@ function Terrain({ seed, zones }) {
 
 function App() {
   const [seed, setSeed] = useState(Math.floor(Math.random() * 100000));
-  const [prompt, setPrompt] = useState('montanhas ao norte, planície no centro, rio largo no sul, lago pequeno no meio');
-  const [zones, setZones] = useState(parsePrompt(prompt));
+  const [controls, setControls] = useState({
+    mountainHeight: 8,
+    riverWidth: 2,
+    lakeDepth: -1,
+    lakeRadius: 5,
+    plainHeight: 1,
+    noiseScale: 2,
+  });
 
-  useEffect(() => {
-    setZones(parsePrompt(prompt));
-  }, [prompt]);
+  const handleChange = (key, value) => {
+    setControls((prev) => ({ ...prev, [key]: parseFloat(value) }));
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -117,32 +108,37 @@ function App() {
           zIndex: 10,
           fontFamily: 'monospace',
           borderRight: '1px solid #333',
+          overflowY: 'auto',
         }}
       >
         <h2 style={{ marginBottom: 16 }}>🧠 MUNDRIX</h2>
 
-        <label>Prompt</label>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Ex: montanhas ao norte, lago no centro, rio fino"
-          style={{
-            marginTop: 6,
-            marginBottom: 12,
-            padding: '8px',
-            width: '100%',
-            background: '#222',
-            color: '#fff',
-            border: '1px solid #444',
-            borderRadius: '6px',
-          }}
-        />
+        {[
+          { label: 'Montanha Altura', key: 'mountainHeight', min: 0, max: 20 },
+          { label: 'Planície Altura', key: 'plainHeight', min: 0, max: 5 },
+          { label: 'Ruído (Noise)', key: 'noiseScale', min: 0.1, max: 5, step: 0.1 },
+          { label: 'Largura do Rio', key: 'riverWidth', min: 0, max: 10 },
+          { label: 'Raio do Lago', key: 'lakeRadius', min: 0, max: 20 },
+          { label: 'Profundidade Lago', key: 'lakeDepth', min: -5, max: 0, step: 0.1 },
+        ].map(({ label, key, min, max, step = 1 }) => (
+          <div key={key} style={{ marginBottom: 12 }}>
+            <label>{label}: {controls[key]}</label>
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={controls[key]}
+              onChange={(e) => handleChange(key, e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+        ))}
 
         <button
           onClick={() => setSeed(Math.floor(Math.random() * 100000))}
           style={{
-            marginTop: 8,
+            marginTop: 16,
             padding: '8px 16px',
             background: '#444',
             color: '#fff',
@@ -174,7 +170,7 @@ function App() {
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
-        <Terrain seed={seed} zones={zones} />
+        <Terrain seed={seed} controls={controls} />
         <OrbitControls />
       </Canvas>
     </div>
